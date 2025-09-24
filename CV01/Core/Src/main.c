@@ -66,7 +66,8 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-uint8_t pole[32]={1,0,1,0,1,0,0,1,1,1,0,1,1,1,0,1,1,1,0,0,1,0,1,0,1};
+//uint8_t pole[32]={1,0,1,0,1,0,0,1,1,1,0,1,1,1,0,1,1,1,0,0,1,0,1,0,1};
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -107,20 +108,38 @@ uint8_t pole[32]={1,0,1,0,1,0,0,1,1,1,0,1,1,1,0,1,1,1,0,0,1,0,1,0,1};
 //	  LL_mDelay(200);
 /*_________________END first exercises_______________*/
 
+
+
 /*__________________Second exercises_________________*/
-	  for(int8_t i=0; i<31; i++){
-		  if(pole[i]==1){
+//	  for(int8_t i=0; i<31; i++){
+//		  if(pole[i]==1){
+//			  LL_GPIO_SetOutputPin(LD2_GPIO_Port, LD2_Pin);
+//			  LL_mDelay(200);
+//		  }else{
+//			  LL_GPIO_ResetOutputPin(LD2_GPIO_Port, LD2_Pin);
+//			  LL_mDelay(200);
+//		  }
+//	  }
+/*_________________END Second exercises_______________*/
+
+
+
+/*__________________Third exercises_________________*/
+	  uint32_t array = 0b1010100111011101110010101;
+	  for(int8_t i=0; i<32; i++){
+		  if(array&(1UL<<i)){
 			  LL_GPIO_SetOutputPin(LD2_GPIO_Port, LD2_Pin);
 			  LL_mDelay(200);
+
 		  }else{
 			  LL_GPIO_ResetOutputPin(LD2_GPIO_Port, LD2_Pin);
 			  LL_mDelay(200);
 		  }
+//		  array=array<<1;
 	  }
-/*_________________END Second exercises_______________*/
 
-/*__________________Third exercises_________________*/
 
+/*__________________End third exercises_________________*/
   }
   /* USER CODE END 3 */
 }
