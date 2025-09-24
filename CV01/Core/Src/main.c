@@ -66,7 +66,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+uint8_t pole[32];
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -100,6 +100,14 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  LL_GPIO_SetOutputPin(LD2_GPIO_Port, LD2_Pin);
+	  LL_mDelay(200);
+	  LL_GPIO_ResetOutputPin(LD2_GPIO_Port, LD2_Pin);
+	  LL_mDelay(200);
+//	  for(int16_t i; i<31; i++){
+//	for 2-nd example
+//	  }
+
   }
   /* USER CODE END 3 */
 }
