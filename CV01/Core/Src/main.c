@@ -66,7 +66,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-uint8_t pole[32];
+uint8_t pole[32]={1,0,1,0,1,0,0,1,1,1,0,1,1,1,0,1,1,1,0,0,1,0,1,0,1};
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -100,13 +100,26 @@ uint8_t pole[32];
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  LL_GPIO_SetOutputPin(LD2_GPIO_Port, LD2_Pin);
-	  LL_mDelay(200);
-	  LL_GPIO_ResetOutputPin(LD2_GPIO_Port, LD2_Pin);
-	  LL_mDelay(200);
-//	  for(int16_t i; i<31; i++){
-//	for 2-nd example
-//	  }
+/*__________________First exercises_________________*/
+//	  LL_GPIO_SetOutputPin(LD2_GPIO_Port, LD2_Pin);
+//	  LL_mDelay(200);
+//	  LL_GPIO_ResetOutputPin(LD2_GPIO_Port, LD2_Pin);
+//	  LL_mDelay(200);
+/*_________________END first exercises_______________*/
+
+/*__________________Second exercises_________________*/
+	  for(int8_t i=0; i<31; i++){
+		  if(pole[i]==1){
+			  LL_GPIO_SetOutputPin(LD2_GPIO_Port, LD2_Pin);
+			  LL_mDelay(200);
+		  }else{
+			  LL_GPIO_ResetOutputPin(LD2_GPIO_Port, LD2_Pin);
+			  LL_mDelay(200);
+		  }
+	  }
+/*_________________END Second exercises_______________*/
+
+/*__________________Third exercises_________________*/
 
   }
   /* USER CODE END 3 */
