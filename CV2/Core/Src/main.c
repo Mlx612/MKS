@@ -60,59 +60,59 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 void blikac(void)
- {
-	 static uint32_t delay;
+{
+	static uint32_t delay;
 
-	 if (Tick > delay + LED_TIME_BLINK) {
-	 LL_GPIO_TogglePin(LED1_GPIO_Port,LED1_Pin);
-	 delay = Tick;
-	 }
- }
+	if (Tick > delay + LED_TIME_BLINK) {
+		LL_GPIO_TogglePin(LED1_GPIO_Port,LED1_Pin);
+		delay = Tick;
+	}
+}
 
 void tlacitdkaS2(void){
-	 static uint32_t delay;
-	 static uint32_t old_s2;
+	static uint32_t delay;
+	static uint32_t old_s2;
 
-	 if (Tick > delay + 40) {
-		 uint32_t new_s2 = LL_GPIO_IsInputPinSet(S2_GPIO_Port, S2_Pin);
+	if (Tick > delay + 40) {
+		uint32_t new_s2 = LL_GPIO_IsInputPinSet(S2_GPIO_Port, S2_Pin);
 
-		 if (old_s2 && !new_s2) { // falling edge
-			 off_time = Tick + LED_TIME_SHORT;
-			 LL_GPIO_SetOutputPin(LED2_GPIO_Port, LED2_Pin);
-		 }
-		 old_s2 = new_s2;
-	 }
+		if (old_s2 && !new_s2) { // falling edge
+			off_time = Tick + LED_TIME_SHORT;
+			LL_GPIO_SetOutputPin(LED2_GPIO_Port, LED2_Pin);
+		}
+		old_s2 = new_s2;
+	}
 
 
 
-	 if (Tick > off_time) {
-		 LL_GPIO_ResetOutputPin(LED2_GPIO_Port, LED2_Pin);
-	 }
+	if (Tick > off_time) {
+		LL_GPIO_ResetOutputPin(LED2_GPIO_Port, LED2_Pin);
+	}
 
 }
 
 void tlacitdkaS1(void){
-	 static uint32_t delay;
-	 static uint16_t debounce = 0xFFFF;
+	static uint32_t delay;
+	static uint16_t debounce = 0xFFFF;
 
-	 if (Tick > delay + 5) {
-		 debounce<<=1;
-		 if (LL_GPIO_IsInputPinSet(S1_GPIO_Port, S1_Pin)){
-			 debounce |=0x0001;
-		 }
+	if (Tick > delay + 5) {
+		debounce<<=1;
+		if (LL_GPIO_IsInputPinSet(S1_GPIO_Port, S1_Pin)){
+			debounce |=0x0001;
+		}
 
-		 if (debounce==0x8000){
-			 off_time = Tick + LED_TIME_LONG;
-			 LL_GPIO_SetOutputPin(LED2_GPIO_Port, LED2_Pin);
-		 }
+		if (debounce==0x8000){
+			off_time = Tick + LED_TIME_LONG;
+			LL_GPIO_SetOutputPin(LED2_GPIO_Port, LED2_Pin);
+		}
 
-	 }
+	}
 
 
 
-	 if (Tick > off_time) {
-		 LL_GPIO_ResetOutputPin(LED2_GPIO_Port, LED2_Pin);
-	 }
+	if (Tick > off_time) {
+		LL_GPIO_ResetOutputPin(LED2_GPIO_Port, LED2_Pin);
+	}
 
 }
 
