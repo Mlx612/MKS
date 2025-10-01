@@ -93,16 +93,19 @@ void tlacitdkaS2(void){
 
 void tlacitdkaS1(void){
 	 static uint32_t delay;
-	 static uint32_t old_s1;
+	 static uint16_t debounce = 0xFFFF;
 
-	 if (Tick > delay + 40) {
-		 uint32_t new_s1 = LL_GPIO_IsInputPinSet(S1_GPIO_Port, S1_Pin);
+	 if (Tick > delay + 5) {
+		 debounce<<=1;
+		 if (LL_GPIO_IsInputPinSet(S1_GPIO_Port, S1_Pin)){
+			 debounce |=0x0001;
+		 }
 
-		 if (old_s1 && !new_s1) { // falling edge
+		 if (debounce==0x8000){
 			 off_time = Tick + LED_TIME_LONG;
 			 LL_GPIO_SetOutputPin(LED2_GPIO_Port, LED2_Pin);
 		 }
-		 old_s1 = new_s1;
+
 	 }
 
 
