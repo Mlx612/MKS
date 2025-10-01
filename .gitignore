@@ -1,4 +1,6 @@
 /.metadata
 /CV01/Debug
+*.xml
+*.launch
 /CV2/Debug
 /CV2/CV2 Debug.launch
