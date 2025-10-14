@@ -32,6 +32,14 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define ADC_Q 12
+
+/* Temperature sensor calibration value address */
+#define TEMP110_CAL_ADDR ((uint16_t*) ((uint32_t) 0x1FFFF7C2))
+#define TEMP30_CAL_ADDR ((uint16_t*) ((uint32_t) 0x1FFFF7B8))
+/* Internal voltage reference calibration value address */
+#define VREFINT_CAL_ADDR ((uint16_t*) ((uint32_t) 0x1FFFF7BA))
+
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -61,7 +69,14 @@ static void MX_ADC_Init(void);
 /* USER CODE BEGIN 0 */
 
 static volatile uint32_t raw_pot=0;
+static volatile uint32_t avg_pot = 0;
+static volatile uint32_t raw_temp = 0;
+static volatile uint32_t raw_vref = 0;
+static volatile uint8_t  chan = 0; // 0–2: Rank1=IN0, Rank2=Temp, Rank3=Vref
 
+typedef enum { SHOW_POT = 0, SHOW_VOLT, SHOW_TEMP } view_t;
+static volatile view_t view = SHOW_POT;
+static uint32_t view_timestamp = 0;
 
 /* USER CODE END 0 */
 
@@ -109,13 +124,44 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  static volatile uint16_t raw_test;
-	  uint16_t raw_r2=(uint16_t)((raw_pot * 500u + 2047u) / 4095u);
-	  raw_test=raw_r2;
-	  uint8_t  bl = (uint8_t)((raw_r2 * 8u + 250u) / 500u); // 0..8
-	  sct_value(raw_r2,bl);
-//	  sct_ledS(bl);
+
+	  uint8_t  bl;
+	  uint8_t dot=0;
+
+
+	  update_view();
+
+	  uint16_t disp = 0;
+	  switch (view) {
+	  case SHOW_POT: {
+		  // POT: шкала 0..500
+		  disp = (uint16_t)((raw_pot * 500u + 2047u) / 4095u);
+		  bl = (uint8_t)((disp * 8u + 250u) / 500u); // 0..8
+	  } break;
+
+	  case SHOW_VOLT: {
+		  // показать AVCC в сотых: 3.30V → "330"
+		  uint32_t avcc_centi = 330u * (*VREFINT_CAL_ADDR) / (raw_vref ? raw_vref : 1u);
+		  if (avcc_centi > 999u) avcc_centi = 999u;
+		  disp = (uint16_t)avcc_centi;
+		  dot=1;
+	  } break;
+
+	  case SHOW_TEMP: {
+		  int32_t t = (int32_t)raw_temp - (int32_t)(*TEMP30_CAL_ADDR);
+		  t = t * 80; // (110-30)
+		  t = t / ((int32_t)(*TEMP110_CAL_ADDR) - (int32_t)(*TEMP30_CAL_ADDR));
+		  t = t + 30;
+		  if (t < 0) t = 0;
+		  if (t > 999) t = 999;
+		  disp = (uint16_t)t;
+	  } break;
+	  }
+
+	  sct_value(disp, bl, dot);   // твоя функция сама соберёт цифры + bargraf (для POT он осмыслен)
 	  HAL_Delay(50);
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -211,6 +257,22 @@ static void MX_ADC_Init(void)
   {
     Error_Handler();
   }
+
+  /** Configure for the selected ADC regular channel to be converted.
+  */
+  sConfig.Channel = ADC_CHANNEL_TEMPSENSOR;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel to be converted.
+  */
+  sConfig.Channel = ADC_CHANNEL_VREFINT;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN ADC_Init 2 */
 
   /* USER CODE END ADC_Init 2 */
@@ -282,6 +344,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : S2_Pin S1_Pin */
+  GPIO_InitStruct.Pin = S2_Pin|S1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
   /*Configure GPIO pin : LD2_Pin */
   GPIO_InitStruct.Pin = LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -304,21 +372,79 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 	void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 	{
-		raw_pot = HAL_ADC_GetValue(hadc);
-//
-		static uint32_t avg_pot;
-//
-		raw_pot = avg_pot >> ADC_Q;
-		avg_pot -= raw_pot;
-		avg_pot += HAL_ADC_GetValue(hadc);
-//		uint32_t s = HAL_ADC_GetValue(hadc);
+	    uint32_t s = HAL_ADC_GetValue(hadc);
 
-//
-//	    if (avg_pot == 0) avg_pot = s << ADC_Q;
-//	    avg_pot -= (avg_pot >> ADC_Q);
-//	    avg_pot += s;
-//	    raw_pot = (avg_pot >> ADC_Q);
+	    if (chan == 0) {                 // Rank1: IN0 (POT)
+	        if (avg_pot == 0) avg_pot = s << ADC_Q;  // быстрая инициализация
+	        avg_pot -= (avg_pot >> ADC_Q);
+	        avg_pot += s;
+	        raw_pot = (avg_pot >> ADC_Q);
+	    } else if (chan == 1) {          // Rank2: TEMP
+	        raw_temp = s;
+	    } else {                          // Rank3: VREFINT
+	        raw_vref = s;
+	    }
+
+	    if (__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_EOS)) chan = 0;
+	    else chan++;
 	}
+
+	uint8_t read_button_S1(void)
+	{
+	    static uint32_t delay;
+	    static uint16_t debounce = 0xFFFF;
+	    uint32_t Tick = HAL_GetTick();
+
+	    if (Tick > delay + 5) {
+	        delay = Tick;
+
+	        debounce <<= 1;
+	        if (HAL_GPIO_ReadPin(S1_GPIO_Port, S1_Pin) == GPIO_PIN_SET) {
+	            debounce |= 0x0001;   // pull-up: отпущена = 1
+	        }
+	        if (debounce == 0x8000) {
+	            return 1;             // нажата
+	        }
+	    }
+	    return 0;                     // не нажата
+	}
+
+	uint8_t read_button_S2(void)
+	{
+	    static uint32_t delay;
+	    static uint16_t debounce = 0xFFFF;
+	    uint32_t Tick = HAL_GetTick();
+
+	    if (Tick > delay + 5) {
+	        delay = Tick;
+
+	        debounce <<= 1;
+	        if (HAL_GPIO_ReadPin(S2_GPIO_Port, S2_Pin) == GPIO_PIN_SET) {
+	            debounce |= 0x0001;   // pull-up: отпущена = 1
+	        }
+	        if (debounce == 0x8000) {
+	            return 1;             // нажата
+	        }
+	    }
+	    return 0;                     // не нажата
+	}
+
+	void update_view(void)
+	{
+	    uint32_t now = HAL_GetTick();
+
+	    if (read_button_S1()) {
+	        view = SHOW_VOLT;
+	        view_timestamp = now;
+	    } else if (read_button_S2()) {
+	        view = SHOW_TEMP;
+	        view_timestamp = now;
+	    } else {
+	        // если 1 сек не нажимали — вернуться на POT
+	        if ((now - view_timestamp) > 1000u) view = SHOW_POT;
+	    }
+	}
+
 /* USER CODE END 4 */
 
 /**

@@ -4,3 +4,4 @@
 *.launch
 /CV2/Debug
 /CV2/CV2 Debug.launch
+.DS_Store

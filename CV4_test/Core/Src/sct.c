@@ -31,7 +31,7 @@ void sct_led(uint32_t value){
 
 
 
-static const uint32_t reg_values[4][10] = {
+static const uint32_t reg_values[5][10] = {
 		{
 				//PCDE--------GFAB @ DIS1
 				0b0111000000000111 << 16,
@@ -86,9 +86,18 @@ static const uint32_t reg_values[4][10] = {
 	    	      0u
 	    },
 
+	    /* [4] */
+	    {
+	    	      0u,                                                   // 0
+	    	      ((1u<< (16+15))),                      // DIS 1 dot
+				  ((1u<< (11))),                         // DIS 2 dot
+				  ((1u<< (15))),                         // DIS 3 dot
+	    	      0u
+	    },
+
 };
 
-void sct_value(uint16_t value, uint8_t led){
+void sct_value(uint16_t value, uint8_t led, uint8_t dot){
 	//	ochrana proti prekoroceni max hodnoty
     if (value > 999){ value = 999;}
     if (led > 8) led = 8;
@@ -101,17 +110,11 @@ void sct_value(uint16_t value, uint8_t led){
 	reg |= reg_values[1][tens];
 	reg |= reg_values[2][ones];
 	reg |= reg_values[3][led];
+	reg |= reg_values[4][dot];
 	sct_led(reg);
 
 }
 
-//void sct_ledS(uint8_t led){
-//	uint32_t reg = 0;
-//	if (led > 8) led = 8;
-//	reg |= reg_values[3][led];
-//
-//	sct_led(reg);
-//}
 
 
 
