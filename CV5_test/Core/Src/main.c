@@ -80,12 +80,11 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+  /* USER CODE END Init */\
 
   /* Configure the system clock */
   SystemClock_Config();
@@ -121,6 +120,8 @@ int main(void)
 		  if (++uart_rx_read_ptr >= RX_BUFFER_LEN) uart_rx_read_ptr = 0; // increase read pointer
 		  uart_byte_available(b); // process every received byte with the RX state machine
 	  }
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -260,7 +261,14 @@ static void MX_GPIO_Init(void)
 // обработка готовой текстовой команды (пока просто печать)
 static void uart_process_command(const char *cmd)
 {
-    printf("prijato: '%s'\r\n", cmd);
+//    printf("prijato: '%s'\r\n", cmd);
+
+
+	  char *token;
+	  token = strtok(cmd, " ");
+	  if (strcasecmp(token, "HELLO") == 0) {
+		  printf("Komunikace OK\n");
+	  }
 }
 
 // складываем печатаемые символы в буфер, по \n или \r — вызываем обработчик
