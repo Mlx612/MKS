@@ -23,6 +23,8 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>   // для strcasecmp
+#include <stdlib.h>    // для strtol
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,6 +39,8 @@
 static uint8_t uart_rx_buf[RX_BUFFER_LEN];
 static volatile uint16_t uart_rx_read_ptr = 0;
 #define uart_rx_write_ptr (RX_BUFFER_LEN - hdma_usart2_rx.Instance->CNDTR)
+#define EEPROM_ADDR 0xA0
+#define I2C_MEM_ADDR_SIZE   I2C_MEMADD_SIZE_16BIT
 
 /* USER CODE END PD */
 
@@ -46,6 +50,8 @@ static volatile uint16_t uart_rx_read_ptr = 0;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+I2C_HandleTypeDef hi2c1;
+
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_rx;
 
@@ -58,8 +64,13 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 static void uart_byte_available(uint8_t c);
+static void uart_process_command(const char *cmd);
+
+static HAL_StatusTypeDef eeprom_read(uint16_t addr, uint8_t *data, uint16_t len);
+static HAL_StatusTypeDef eeprom_write_byte(uint16_t addr, uint8_t value);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -98,6 +109,7 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART2_UART_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   HAL_UART_Receive_DMA(&huart2, uart_rx_buf, RX_BUFFER_LEN); // activation DMA transfer from the UART
 
@@ -137,6 +149,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
@@ -165,6 +178,60 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_I2C1;
+  PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.Timing = 0x00201D2B;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
 }
 
 /**
@@ -269,49 +336,115 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+static HAL_StatusTypeDef eeprom_read(uint16_t addr, uint8_t *data, uint16_t len)
+{
+    return HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, addr,
+                            I2C_MEM_ADDR_SIZE, data, len, 1000);
+}
+
+static HAL_StatusTypeDef eeprom_write_byte(uint16_t addr, uint8_t value)
+{
+    HAL_StatusTypeDef st = HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, addr,
+                                             I2C_MEM_ADDR_SIZE, &value, 1, 1000);
+    if (st != HAL_OK) return st;
+
+    // ожидание завершения внутренней записи в EEPROM
+    while (HAL_I2C_IsDeviceReady(&hi2c1, EEPROM_ADDR, 300, 1000) == HAL_TIMEOUT) { }
+    return HAL_OK;
+}
+
+
 // обработка готовой текстовой команды (пока просто печать)
-static void uart_process_command(const char *cmd){
-//    printf("prijato: '%s'\r\n", cmd);
+static void uart_process_command(const char *cmd)
+{
+    // делаем копию, потому что strtok модифицирует строку
+    char buf[CMD_BUFFER_LEN];
+    strncpy(buf, cmd, sizeof(buf));
+    buf[sizeof(buf)-1] = '\0';
 
+    char *token = strtok(buf, " ");
+    if (!token) return;
 
-	  char *token;
-	  token = strtok(cmd, " ");
+    if (strcasecmp(token, "HELLO") == 0) {
+        printf("Komunikace OK\r\n");
+        return;
+    }
 
-	    if (strcasecmp(token, "HELLO") == 0) {
-	        printf("Komunikace OK\n");
-	    }
-	    else if (strcasecmp(token, "LED1") == 0) {
-	        token = strtok(NULL, " ");
-	        if (token && strcasecmp(token, "ON") == 0) {
-	            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-	            printf("LED1 ON\n");
-	        }
-	        else if (token && strcasecmp(token, "OFF") == 0) {
-	            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-	            printf("LED1 OFF\n");
-	        }
-	    }
-	    else if (strcasecmp(token, "LED2") == 0) {
-	        token = strtok(NULL, " ");
-	        if (token && strcasecmp(token, "ON") == 0) {
-	            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
-	            printf("LED2 ON\n");
-	        }
-	        else if (token && strcasecmp(token, "OFF") == 0) {
-	            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
-	            printf("LED2 OFF\n");
-	        }
-	    }
-	    else if (strcasecmp(token, "STATUS") == 0) {
-	        GPIO_PinState led1 = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4);
-	        GPIO_PinState led2 = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_0);
-	        printf("LED1=%s LED2=%s\n",
-	               (led1 == GPIO_PIN_SET) ? "ON" : "OFF",
-	               (led2 == GPIO_PIN_SET) ? "ON" : "OFF");
-	    }
-	    else {
-	        printf("Neznamy prikaz\n");
-	    }
+    if (strcasecmp(token, "LED1") == 0) {
+        token = strtok(NULL, " ");
+        if (token && strcasecmp(token, "ON") == 0) {
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+            printf("LED1 ON\r\n");
+        } else if (token && strcasecmp(token, "OFF") == 0) {
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+            printf("LED1 OFF\r\n");
+        }
+        return;
+    }
+
+    if (strcasecmp(token, "LED2") == 0) {
+        token = strtok(NULL, " ");
+        if (token && strcasecmp(token, "ON") == 0) {
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+            printf("LED2 ON\r\n");
+        } else if (token && strcasecmp(token, "OFF") == 0) {
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+            printf("LED2 OFF\r\n");
+        }
+        return;
+    }
+
+    if (strcasecmp(token, "STATUS") == 0) {
+        GPIO_PinState led1 = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4);
+        GPIO_PinState led2 = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_0);
+        printf("LED1=%s LED2=%s\r\n",
+               (led1 == GPIO_PIN_SET) ? "ON" : "OFF",
+               (led2 == GPIO_PIN_SET) ? "ON" : "OFF");
+        return;
+    }
+
+    if (strcasecmp(token, "READ") == 0) {
+        token = strtok(NULL, " ");
+        if (!token) { printf("ERR: addr\r\n"); return; }
+
+        uint16_t addr = (uint16_t)strtol(token, NULL, 0); // 2 или 0x0002
+        uint8_t  v;
+        if (eeprom_read(addr, &v, 1) == HAL_OK) {
+            printf("Adresa 0x%04X = 0x%02X\r\n", addr, v);
+        } else {
+            printf("READ FAIL\r\n");
+        }
+        return;
+    }
+
+    if (strcasecmp(token, "WRITE") == 0) {
+        char *t_addr = strtok(NULL, " ");
+        char *t_val  = strtok(NULL, " ");
+        if (!t_addr || !t_val) { printf("ERR: args\r\n"); return; }
+
+        uint16_t addr = (uint16_t)strtol(t_addr, NULL, 0);
+        uint8_t  val  = (uint8_t) strtol(t_val,  NULL, 0);
+
+        if (eeprom_write_byte(addr, val) == HAL_OK) {
+            printf("OK\r\n");
+        } else {
+            printf("WRITE FAIL\r\n");
+        }
+        return;
+    }
+
+    if (strcasecmp(token, "DUMP") == 0) {
+        uint8_t d[16];
+        if (eeprom_read(0x0000, d, sizeof d) == HAL_OK) {
+            for (int i = 0; i < 16; ++i)
+                printf("%02X%s", d[i], (i==7 || i==15) ? "\r\n" : " ");
+        } else {
+            printf("DUMP FAIL\r\n");
+        }
+        return;
+    }
+
+    printf("Neznamy prikaz\r\n");
 }
 // складываем печатаемые символы в буфер, по \n или \r — вызываем обработчик
 static void uart_byte_available(uint8_t c)
