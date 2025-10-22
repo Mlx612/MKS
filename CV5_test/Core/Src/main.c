@@ -41,6 +41,7 @@ static volatile uint16_t uart_rx_read_ptr = 0;
 #define uart_rx_write_ptr (RX_BUFFER_LEN - hdma_usart2_rx.Instance->CNDTR)
 #define EEPROM_ADDR 0xA0
 #define I2C_MEM_ADDR_SIZE   I2C_MEMADD_SIZE_16BIT
+#define EEPROM_SIZE_BYTES   8192     // 24LC64 = 64 kbit = 8 kB, адреса 0x0000..0x1FFF
 
 /* USER CODE END PD */
 
@@ -338,14 +339,12 @@ static void MX_GPIO_Init(void)
 
 static HAL_StatusTypeDef eeprom_read(uint16_t addr, uint8_t *data, uint16_t len)
 {
-    return HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, addr,
-                            I2C_MEM_ADDR_SIZE, data, len, 1000);
+    return HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, addr, I2C_MEM_ADDR_SIZE, data, len, 1000);
 }
 
 static HAL_StatusTypeDef eeprom_write_byte(uint16_t addr, uint8_t value)
 {
-    HAL_StatusTypeDef st = HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, addr,
-                                             I2C_MEM_ADDR_SIZE, &value, 1, 1000);
+    HAL_StatusTypeDef st = HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, addr, I2C_MEM_ADDR_SIZE, &value, 1, 1000);
     if (st != HAL_OK) return st;
 
     // ожидание завершения внутренней записи в EEPROM
@@ -363,7 +362,10 @@ static void uart_process_command(const char *cmd)
     buf[sizeof(buf)-1] = '\0';
 
     char *token = strtok(buf, " ");
-    if (!token) return;
+    if (!token){
+    	printf("ERR token\r\n");
+    	return;
+    }
 
     if (strcasecmp(token, "HELLO") == 0) {
         printf("Komunikace OK\r\n");
@@ -412,7 +414,7 @@ static void uart_process_command(const char *cmd)
         if (eeprom_read(addr, &v, 1) == HAL_OK) {
             printf("Adresa 0x%04X = 0x%02X\r\n", addr, v);
         } else {
-            printf("READ FAIL\r\n");
+            printf("READ FAIL :(\r\n");
         }
         return;
     }
@@ -436,13 +438,40 @@ static void uart_process_command(const char *cmd)
     if (strcasecmp(token, "DUMP") == 0) {
         uint8_t d[16];
         if (eeprom_read(0x0000, d, sizeof d) == HAL_OK) {
-            for (int i = 0; i < 16; ++i)
-                printf("%02X%s", d[i], (i==7 || i==15) ? "\r\n" : " ");
+            for (int i = 0; i < 16; ++i){
+            	printf("%02X%s", d[i], (i==7 || i==15) ? "\r\n" : " ");
+            }
         } else {
             printf("DUMP FAIL\r\n");
         }
         return;
     }
+
+//    if (strcasecmp(token, "rm") == 0) {
+//        char *opt = strtok(NULL, " ");
+//        if (!(opt && strcasecmp(opt, "-rf") == 0)) {
+//            printf("may u think rm -rf\r\n");
+//            return;
+//        }
+//
+//        uint16_t errors = 0;
+//        for (uint16_t addr = 0; addr < EEPROM_SIZE_BYTES; ++addr) {
+//            if (eeprom_write_byte(addr, 0xFF) != HAL_OK) {
+//                printf("WARN: fail at 0x%04X\r\n", addr);
+//                errors++;
+//            }
+//
+//            if ((addr & 0x0F) == 0x0F) {
+//                printf("."); // визуальный прогресс
+//            }
+//        }
+//
+//        if (errors == 0)
+//            printf("\r\nErase complete: OK\r\n");
+//        else
+//            printf("\r\nErase done with %u errors\r\n", errors);
+//        return;
+//    }
 
     printf("Neznamy prikaz\r\n");
 }
