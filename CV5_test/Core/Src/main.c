@@ -348,7 +348,7 @@ static HAL_StatusTypeDef eeprom_write_byte(uint16_t addr, uint8_t value)
     if (st != HAL_OK) return st;
 
     // ожидание завершения внутренней записи в EEPROM
-    while (HAL_I2C_IsDeviceReady(&hi2c1, EEPROM_ADDR, 300, 1000) == HAL_TIMEOUT) { }
+    while (HAL_I2C_IsDeviceReady(&hi2c1, EEPROM_ADDR, 300, 1000) != HAL_OK) { }
     return HAL_OK;
 }
 
@@ -357,7 +357,7 @@ static HAL_StatusTypeDef eeprom_write_byte(uint16_t addr, uint8_t value)
 static void uart_process_command(const char *cmd)
 {
     // делаем копию, потому что strtok модифицирует строку
-    char buf[CMD_BUFFER_LEN];
+    static char buf[CMD_BUFFER_LEN];
     strncpy(buf, cmd, sizeof(buf));
     buf[sizeof(buf)-1] = '\0';
 
@@ -375,7 +375,7 @@ static void uart_process_command(const char *cmd)
     if (strcasecmp(token, "LED1") == 0) {
         token = strtok(NULL, " ");
         if (token && strcasecmp(token, "ON") == 0) {
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
             printf("LED1 ON\r\n");
         } else if (token && strcasecmp(token, "OFF") == 0) {
             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
@@ -447,31 +447,30 @@ static void uart_process_command(const char *cmd)
         return;
     }
 
-//    if (strcasecmp(token, "rm") == 0) {
-//        char *opt = strtok(NULL, " ");
-//        if (!(opt && strcasecmp(opt, "-rf") == 0)) {
-//            printf("may u think rm -rf\r\n");
-//            return;
-//        }
-//
-//        uint16_t errors = 0;
-//        for (uint16_t addr = 0; addr < EEPROM_SIZE_BYTES; ++addr) {
-//            if (eeprom_write_byte(addr, 0xFF) != HAL_OK) {
-//                printf("WARN: fail at 0x%04X\r\n", addr);
-//                errors++;
-//            }
-//
-//            if ((addr & 0x0F) == 0x0F) {
-//                printf("."); // визуальный прогресс
-//            }
-//        }
-//
-//        if (errors == 0)
-//            printf("\r\nErase complete: OK\r\n");
-//        else
-//            printf("\r\nErase done with %u errors\r\n", errors);
-//        return;
-//    }
+    if (strcasecmp(token, "rm") == 0) {
+        char *opt = strtok(NULL, " ");
+        if (!(opt && strcasecmp(opt, "-rf") == 0)) {
+            printf("may u think rm -rf\r\n");
+            return;
+        }
+
+        uint16_t errors = 0;
+        //EEPROM_SIZE_BYTES
+        for (uint16_t addr = 0; addr < 16; ++addr) {
+//        	uint8_t val = 0xFF;
+            if (eeprom_write_byte(addr, 0xFF) != HAL_OK) {
+                printf("WARN: fail at 0x%04X\r\n", addr);
+                errors++;
+            }
+
+        }
+
+        if (errors == 0)
+            printf("\r\nErase complete: OK\r\n");
+        else
+            printf("\r\nErase done with %u errors\r\n", errors);
+        return;
+    }
 
     printf("Neznamy prikaz\r\n");
 }
