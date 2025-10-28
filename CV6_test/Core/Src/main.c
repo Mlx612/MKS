@@ -18,9 +18,10 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include "1wire.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "sct.h"
 
 /* USER CODE END Includes */
 
@@ -56,7 +57,7 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+void OWInit(void);
 /* USER CODE END 0 */
 
 /**
@@ -97,6 +98,16 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+	  OWConvertAll();
+	  HAL_Delay(750);
+	  int16_t temp_18b20;
+	  OWReadTemperature(&temp_18b20);
+
+	  int16_t temp_round = (temp_18b20 + 5) / 10;
+
+
+	  sct_value(temp_round, 0 ,2 );
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
