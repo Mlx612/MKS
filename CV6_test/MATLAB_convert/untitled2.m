@@ -42,4 +42,4 @@ title('NTC: původní data a polynomiální aproximace');
 
 % --- 6) Uložení lookup tabulky do souboru pro C ---
 % "hodnoty oddělené čárkou, v desetinných stupních"
-dlmwrite('data.dlm', t2, 'delimiter', ',', 'precision', '%.1f');
+dlmwrite('data.dlm', t2*10, 'delimiter', ',', 'precision', '%d');

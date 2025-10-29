@@ -149,9 +149,9 @@ int main(void)
 
 	    if (src == SRC_NTC) {
 	        t10 = ntc_temp_x10();
-	        sct_value(t10*10, 0 ,2 );
+	        sct_value(t10, 0 ,2 );
 	    } else {
-	        update_ds18b20();     // voláme opakovaně, ale převod max. 1× / 750ms
+	        update_ds18b20();     //max. 1× / 750ms
 	        t10 = ds18b20_val_x10;
 	        sct_value(t10, 0 ,2 );
 	    }
@@ -366,8 +366,8 @@ static void MX_GPIO_Init(void)
 
 static inline int16_t ntc_temp_x10(void){
     uint16_t adc = HAL_ADC_GetValue(&hadc); // 0..1023 (10 bit)
-    if (adc > 1023) adc = 1023;             // защита индекса
-    return ntc_lookup[adc];                  // ×10 °C
+    if (adc > 1023) adc = 1023;             // index protection
+    return ntc_lookup[adc];                  // ×10 C
 }
 
 void update_source(void){
@@ -386,12 +386,12 @@ void update_source(void){
 
 void update_ds18b20(void){
     if (HAL_GetTick() - lastDS18B20Conv >= 750) {
-        OWConvertAll();                // start měření
-        HAL_Delay(750);                // čekám na hotovo
+        OWConvertAll();                // start measure
+        HAL_Delay(750);                // wait from complete
 
         int16_t t_centi;
-        if (OWReadTemperature(&t_centi) != 0) {
-            // převod na ×10°C (centi jsou ×100)
+        if (OWReadTemperature(&t_centi)) {
+            // convert ×10°C
             ds18b20_val_x10 = (t_centi + (t_centi >= 0 ? 5 : -5)) / 10;
         }
 
