@@ -392,7 +392,16 @@ void update_ds18b20(void){
         int16_t t_centi;
         if (OWReadTemperature(&t_centi)) {
             // convert ×10°C
-            ds18b20_val_x10 = (t_centi + (t_centi >= 0 ? 5 : -5)) / 10;
+
+            //rounding for negative and positive temp
+        	uint8_t round_t = 0;
+        	if (t_centi < 0){
+        		round_t = -5;
+        	}else{
+        		round_t = +5;
+        	}
+
+            ds18b20_val_x10 = (t_centi + round_t) / 10;
         }
 
         lastDS18B20Conv = HAL_GetTick();
