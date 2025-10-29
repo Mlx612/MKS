@@ -21,6 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "1wire.h"
 #include "sct.h"
 #include "ntc_lookup.h"
 
@@ -57,10 +58,9 @@ static void MX_USART2_UART_Init(void);
 static void MX_ADC_Init(void);
 /* USER CODE BEGIN PFP */
 
-static inline int16_t ntc_temp_x10(void);
-void update_ds18b20(void);
-void update_source(void);
-void OWInit(void);
+static int16_t ntc_temp_x10(void);
+static int16_t update_ds18b20(void);
+static void update_source(void);
 
 
 /* USER CODE END PFP */
@@ -76,13 +76,8 @@ typedef enum {
 
 static src_t src = SRC_DS18B20;
 
-static uint32_t lastBtnCheck = 0;
 
-static int16_t  ds18b20_val_x10 = 0;
-static uint32_t lastDS18B20Conv = 0;
 
-uint8_t OWConvertAll(void);
-uint8_t OWReadTemperature(int16_t *t_centi);
 /* USER CODE END 0 */
 
 /**
@@ -152,7 +147,7 @@ int main(void)
 	        sct_value(t10, 0 ,2 );
 	    } else {
 	        update_ds18b20();     //max. 1× / 750ms
-	        t10 = ds18b20_val_x10;
+	        t10 = update_ds18b20();
 	        sct_value(t10, 0 ,2 );
 	    }
 
@@ -364,13 +359,14 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-static inline int16_t ntc_temp_x10(void){
+static int16_t ntc_temp_x10(void){
     uint16_t adc = HAL_ADC_GetValue(&hadc); // 0..1023 (10 bit)
     if (adc > 1023) adc = 1023;             // index protection
     return ntc_lookup[adc];                  // ×10 C
 }
 
-void update_source(void){
+static void update_source(void){
+	static uint32_t lastBtnCheck = 0;
     if (HAL_GetTick() - lastBtnCheck < 50) return;  // debounce 50ms
     lastBtnCheck = HAL_GetTick();
 
@@ -380,32 +376,35 @@ void update_source(void){
     if (s2 == GPIO_PIN_RESET) src = SRC_NTC;
     if (s1 == GPIO_PIN_RESET) src = SRC_DS18B20;
 
-    HAL_GPIO_WritePin(GPIOA, LED1_Pin, (src == SRC_NTC));
-    HAL_GPIO_WritePin(GPIOB, LED2_Pin, (src == SRC_DS18B20));
+    HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, (src == SRC_NTC));
+    HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, (src == SRC_DS18B20));
 }
 
-void update_ds18b20(void){
-    if (HAL_GetTick() - lastDS18B20Conv >= 750) {
-        OWConvertAll();                // start measure
-        HAL_Delay(750);                // wait from complete
+static int16_t update_ds18b20(void){
+	static uint32_t lastDS18B20Conv = 0;
+	static int16_t ret_val = 0;
+    if (HAL_GetTick() - lastDS18B20Conv >= 750){
+
 
         int16_t t_centi;
+
         if (OWReadTemperature(&t_centi)) {
             // convert ×10°C
 
             //rounding for negative and positive temp
-        	uint8_t round_t = 0;
-        	if (t_centi < 0){
-        		round_t = -5;
-        	}else{
-        		round_t = +5;
-        	}
-
-            ds18b20_val_x10 = (t_centi + round_t) / 10;
+//        	uint8_t round_t = 0;
+//        	if (t_centi < 0){
+//        		round_t = -5;
+//        	}else{
+//        		round_t = +5;
+//        	}
+        	ret_val = (t_centi + (t_centi < 0 ? 5 : -5)) / 10;
+//            ret_val = (t_centi + round_t) / 10;
         }
-
+        OWConvertAll();                // start measure
         lastDS18B20Conv = HAL_GetTick();
     }
+    return ret_val;
 }
 
 
