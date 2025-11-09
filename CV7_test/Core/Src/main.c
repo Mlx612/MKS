@@ -1,20 +1,20 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2025 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2025 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -22,13 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "lis2dw12_reg.h"
-#include "queue.h"
-
 #include <stdio.h>
-#include <string.h>
-#include <strings.h>   // для strcasecmp
-#include <stdlib.h>    // для strtol
+#include "lis2dw12_reg.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -38,11 +33,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define RX_BUFFER_LEN 64
-#define  CMD_BUFFER_LEN 256
-static volatile uint16_t uart_rx_read_ptr = 0;
-#define uart_rx_write_ptr (RX_BUFFER_LEN - hdma_usart2_rx.Instance->CNDTR)
-#define I2C_MEM_ADDR_SIZE   I2C_MEMADD_SIZE_16BIT
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -54,12 +45,11 @@ static volatile uint16_t uart_rx_read_ptr = 0;
 I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef huart2;
-DMA_HandleTypeDef hdma_usart2_rx;
 
-TaskHandle_t defaultTaskHandle;
-TaskHandle_t VisualTaskHandle;
-TaskHandle_t AcceleroTaskHandle;
-QueueHandle_t xVisualQueueHandle;
+osThreadId defaultTaskHandle;
+osThreadId VisualTaskHandle;
+osThreadId AcceleroTaskHandle;
+osMessageQId xVisualQueueHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -67,18 +57,47 @@ QueueHandle_t xVisualQueueHandle;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 void StartDefaultTask(void const * argument);
-void StartVisualTask(void *argument)
-void StartAcceleroTask(void *argument)
+void StartVisualTask(void const * argument);
+void StartAcceleroTask(void const * argument);
+
 /* USER CODE BEGIN PFP */
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static int32_t platform_write(void *handle, uint8_t reg, const uint8_t *bufp, uint16_t len)
+{
+  if (HAL_I2C_Mem_Write((I2C_HandleTypeDef *)handle,
+                        LIS2DW12_I2C_ADD_H,
+                        reg,
+                        I2C_MEMADD_SIZE_8BIT,
+                        (uint8_t *)bufp,
+                        len, 1000) == HAL_OK)
+    return 0;
+  return -1;
+}
 
+static int32_t platform_read(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len)
+{
+  HAL_I2C_Mem_Read(handle, LIS2DW12_I2C_ADD_H, reg, I2C_MEMADD_SIZE_8BIT, bufp, len, 1000);
+  return 0;
+}
+
+static stmdev_ctx_t lis2dw12 = {
+    .write_reg = platform_write,
+    .read_reg = platform_read,
+    .handle = &hi2c1,
+};
+
+int _write(int file, char const *buf, int n)
+{
+  HAL_UART_Transmit(&huart2, (uint8_t *)(buf), n, HAL_MAX_DELAY);
+  return n;
+}
 /* USER CODE END 0 */
 
 /**
@@ -110,7 +129,6 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
@@ -131,23 +149,32 @@ int main(void)
 
   /* Create the queue(s) */
   /* definition and creation of xVisualQueue */
-  xVisualQueueHandle = xQueueCreate(16, sizeof(int16_t));
-  configASSERT(xVisualQueueHandle != NULL);
+  osMessageQDef(xVisualQueue, 16, uint16_t);
+  xVisualQueueHandle = osMessageCreate(osMessageQ(xVisualQueue), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
-  xVisualQueueHandle = xQueueCreate(16, sizeof(int16_t));
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+
+  /* definition and creation of VisualTask */
+  osThreadDef(VisualTask, StartVisualTask, osPriorityIdle, 0, 128);
+  VisualTaskHandle = osThreadCreate(osThread(VisualTask), NULL);
+
+  /* definition and creation of AcceleroTask */
+  osThreadDef(AcceleroTask, StartAcceleroTask, osPriorityIdle, 0, 128);
+  AcceleroTaskHandle = osThreadCreate(osThread(AcceleroTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
-//  osKernelStart();
+  osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
 
@@ -155,10 +182,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
-//	  printf("test \r\n ");
-//	  HAL_Delay(200);
-
 
     /* USER CODE END WHILE */
 
@@ -296,22 +319,6 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA1_Channel4_5_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel4_5_IRQn, 3, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel4_5_IRQn);
-
-}
-
-/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -362,53 +369,20 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-// === Retarget printf на UART2 (просто и достаточно для лабы) ===
-int _write(int file, char *ptr, int len) {
-    HAL_UART_Transmit(&huart2, (uint8_t*)ptr, len, HAL_MAX_DELAY);
-    return len;
-}
-
-// === Функции доступа к регистрам датчика через HAL I2C ===
-static int32_t platform_write(void *handle, uint8_t reg, const uint8_t *bufp, uint16_t len)
-{
-    I2C_HandleTypeDef *hi2c = (I2C_HandleTypeDef*)handle;
-    HAL_StatusTypeDef st = HAL_I2C_Mem_Write(hi2c,
-                                             LIS2DW12_I2C_ADD_H, // адрес (SA0=1)
-                                             reg,
-                                             I2C_MEMADD_SIZE_8BIT,
-                                             (uint8_t*)bufp,
-                                             len,
-                                             1000);
-    return (st == HAL_OK) ? 0 : -1;
-}
-
-static int32_t platform_read(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len)
-{
-    I2C_HandleTypeDef *hi2c = (I2C_HandleTypeDef*)handle;
-    HAL_StatusTypeDef st = HAL_I2C_Mem_Read(hi2c,
-                                            LIS2DW12_I2C_ADD_H,
-                                            reg,
-                                            I2C_MEMADD_SIZE_8BIT,
-                                            bufp,
-                                            len,
-                                            1000);
-    return (st == HAL_OK) ? 0 : -1;
-}
-
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
+ * @brief  Function implementing the defaultTask thread.
+ * @param  argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-  for(;;)
+  for (;;)
   {
     osDelay(1);
   }
@@ -417,97 +391,93 @@ void StartDefaultTask(void const * argument)
 
 /* USER CODE BEGIN Header_StartVisualTask */
 /**
-* @brief Function implementing the VisualTask thread.
-* @param argument: Not used
-* @retval None
-*/
+ * @brief Function implementing the VisualTask thread.
+ * @param argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_StartVisualTask */
-void StartVisualTask(void *argument)
+void StartVisualTask(void const * argument)
 {
   /* USER CODE BEGIN StartVisualTask */
   /* Infinite loop */
-
   int16_t msg;
-
-  for(;;)
+  for (;;)
   {
-	if (xQueueReceive(xVisualQueueHandle, &msg, portMAX_DELAY) == pdTRUE)
-	{
-	  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin,
-						(msg < -1000) ? GPIO_PIN_SET : GPIO_PIN_RESET);
-	  HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin,
-						(msg >  1000) ? GPIO_PIN_SET : GPIO_PIN_RESET);
-	}
+    if (xQueueReceive(xVisualQueueHandle, &msg, portMAX_DELAY))
+    {
+      if (msg < -1000)
+      {
+        HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);
+      }
+
+      else if (msg > 1000)
+      {
+        HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_SET);
+      }
+
+      else
+      {
+        HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);
+      }
+    }
+    osDelay(1);
   }
   /* USER CODE END StartVisualTask */
 }
 
 /* USER CODE BEGIN Header_StartAcceleroTask */
 /**
-* @brief Function implementing the AcceleroTask thread.
-* @param argument: Not used
-* @retval None
-*/
+ * @brief Function implementing the AcceleroTask thread.
+ * @param argument: Not used
+ * @retval None
+ */
 /* USER CODE END Header_StartAcceleroTask */
-void StartAcceleroTask(void *argument)
+void StartAcceleroTask(void const * argument)
 {
   /* USER CODE BEGIN StartAcceleroTask */
-  /* Infinite loop */
-    // Контекст драйвера ST
-    stmdev_ctx_t lis2 = {
-        .write_reg = platform_write,
-        .read_reg  = platform_read,
-        .handle    = &hi2c1,
-    };
+	  lis2dw12_full_scale_set(&lis2dw12, LIS2DW12_2g);
+	  lis2dw12_power_mode_set(&lis2dw12, LIS2DW12_CONT_LOW_PWR_LOW_NOISE_2);
+	  lis2dw12_block_data_update_set(&lis2dw12, PROPERTY_ENABLE);
+	  // enable continuous FIFO
+	  lis2dw12_fifo_mode_set(&lis2dw12, LIS2DW12_STREAM_MODE);
+	  // enable part from power-down
+	  lis2dw12_data_rate_set(&lis2dw12, LIS2DW12_XL_ODR_25Hz);
 
-    // 1) Проверка WHO_AM_I
-    uint8_t who = 0;
-    lis2dw12_device_id_get(&lis2, &who);
-    printf("LIS2DW12 WHO_AM_I=0x%02X -> %s\r\n", who, (who == LIS2DW12_ID) ? "OK" : "FAIL");
+	  uint8_t ID = 0;
+	  lis2dw12_device_id_get(&lis2dw12, &ID);
+	  printf("LIS2DW12_ID %s\n", (ID == LIS2DW12_ID) ? "OK" : "FAIL");
+	  /* Infinite loop */
 
-    // Если датчик не отвечает — мигаем LD2 и не валимся
-    if (who != LIS2DW12_ID) {
-        for(;;){
-            HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-            vTaskDelay(pdMS_TO_TICKS(500));
-        }
-    }
+	  for (;;)
+	  {
+	    uint8_t samples;
+	    int16_t raw_xyz[3];
+	    lis2dw12_fifo_data_level_get(&lis2dw12, &samples);
+	    for (uint8_t i = 0; i < samples; i++)
+	    {
+	      // Read acceleration data
+	      lis2dw12_acceleration_raw_get(&lis2dw12, raw_xyz);
+	      static uint32_t delay = 0;
 
-    // 2) Сброс и базовая инициализация
-    lis2dw12_reset_set(&lis2, PROPERTY_ENABLE);
-    uint8_t rst;
-    do { lis2dw12_reset_get(&lis2, &rst); } while (rst);
+	      if (HAL_GetTick() > delay + 1000)
+	      {
+	        printf("X=%d Y=%d Z=%d\r\n", raw_xyz[0], raw_xyz[1], raw_xyz[2]);
+	        delay = HAL_GetTick();
+	      }
+	    }
 
-    lis2dw12_block_data_update_set(&lis2, PROPERTY_ENABLE);             // BDU
-    lis2dw12_full_scale_set(&lis2, LIS2DW12_2g);                        // ±2g
-    lis2dw12_power_mode_set(&lis2, LIS2DW12_CONT_LOW_PWR_LOW_NOISE_2);  // LP + low-noise
-    lis2dw12_filter_path_set(&lis2, LIS2DW12_LPF_ON_OUT);               // LPF на выходе
-    lis2dw12_data_rate_set(&lis2, LIS2DW12_XL_ODR_25Hz);                // 25 Гц (потом можно быстрее)
+	    if (samples > 0)
+	    {
+	      int16_t x = raw_xyz[0];
+	      xQueueSend(xVisualQueueHandle, &x, 0);
+	    }
 
-    // 3) Основной цикл: читаем X и шлём mg в очередь
-    for(;;)
-    {
-        // ждём, когда данные готовы
-        uint8_t drdy = 0;
-        lis2dw12_flag_data_ready_get(&lis2, &drdy);
-        if (drdy) {
-            // читаем сырые XYZ
-            int16_t raw[3] = {0};
-            lis2dw12_acceleration_raw_get(&lis2, raw);
-
-            // переводим X в mg (±2g: 1 LSB ≈ 0.976 mg у LIS2DW12, библиотека делает конверсию сама)
-            int16_t x_mg = (int16_t)lis2dw12_from_fs2_to_mg(raw[0]);
-
-            // кладём в очередь (0 — не ждать, чтобы не блокироваться)
-            (void)xQueueSend(xVisualQueueHandle, &x_mg, 0);
-
-            // для отладки:
-            printf("X = %d mg\r\n", x_mg);
-        }
-
-        // период опроса ~40 мс (≈ 25 Гц)
-        vTaskDelay(pdMS_TO_TICKS(40));
-    }
+	    vTaskDelay(50);
+	    osDelay(1);
+	  }
   /* USER CODE END StartAcceleroTask */
 }
 
