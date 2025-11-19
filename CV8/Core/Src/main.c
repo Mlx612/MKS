@@ -114,6 +114,10 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  static uint8_t pos = 0;
+  static uint8_t stat = 0;
+  static uint32_t last_key_time = 0;
+
   while (1)
   {
 
@@ -125,50 +129,46 @@ int main(void)
 //	  printf("test text\r\n");
 //	  HAL_GPIO_TogglePin(LD1_GPIO_Port, LD1_Pin);
 //	  HAL_Delay(500);
-	  uint8_t test = 0;
-	  uint32_t tik=HAL_GetTick();
-	  int8_t i = 0;
-	  const char password[6] = "7932#";
-	  //1
-	  if (key!=0 && key == password[i] && tik+3000>HAL_GetTick()){
-		  test = 1;
-		  printf("test val %d || val i %d>>> \r\n",test, i);
-		  i++;
-		  tik=HAL_GetTick();
-	  }else {test =0; tik=HAL_GetTick(); i++;}
-	  //2
-	  if (key!=0 && key == password[i] && tik+3000>HAL_GetTick()){
-		  test = 1;
-		  printf("test val %d || val i %d>>> \r\n",test, i);
-		  i++;
-		  tik=HAL_GetTick();
-	  }else {test =0; tik=HAL_GetTick(); i++;}
-	  //3
-	  if (key!=0 && key == password[i] && tik+3000>HAL_GetTick()){
-		  test = 1;
-		  printf("test val %d || val i %d>>> \r\n",test, i);
-		  i++;
-		  tik=HAL_GetTick();
-	  }else {test =0; tik=HAL_GetTick(); i++;}
-	  //4
-	  if (key!=0 && key == password[i] && tik+3000>HAL_GetTick()){
-		  test = 1;
-		  printf("test val %d || val i %d>>> \r\n",test, i);
-		  i++;
-		  tik=HAL_GetTick();
-	  }else {test =0; tik=HAL_GetTick(); i++;}
-	  //5
-	  if (key!=0 && key == password[i] && tik+3000>HAL_GetTick()){
-		  test = 1;
-		  printf("test val %d || val i %d>>> \r\n",test, i);
-		  i=0;
-		  tik=HAL_GetTick();
-	  }else {test =0; tik=HAL_GetTick(); i=0;}
-	  if (test ==1){
+
+
+
+	  if (key != 0){
+		  uint32_t now = HAL_GetTick();
+		  static const char password[] = { '7', '9', '3', '2', '#' };
+		  static const uint8_t password_len = sizeof(password);
+
+
+
+		  if (now - last_key_time > 3000) {
+			  pos = 0;
+		  }
+
+		  last_key_time = now;
+
+		  if (key == password[pos]) {
+			  pos++;
+
+			  printf("OK: %c (pos=%d)\n", key, pos);
+
+			  if (pos == password_len) {
+				  printf("UNLOCKED!\n");
+				  stat = 1;
+				  pos = 0;
+			  }
+		  }
+		  else {
+			  printf("WRONG: %c -> reset\n", key);
+			  pos = 0;
+		  }
+		  HAL_Delay(250);
+		  key = 0;
+	  }
+	  if (stat ==1) {
 		  HAL_GPIO_TogglePin(LD1_GPIO_Port, LD1_Pin);
 		  HAL_Delay(250);
-		  printf("password is OK");
 	  }
+
+
 
 
     /* USER CODE END WHILE */
@@ -419,7 +419,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pins : Col1_Pin Col4_Pin Col3_Pin Col2_Pin */
   GPIO_InitStruct.Pin = Col1_Pin|Col4_Pin|Col3_Pin|Col2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pin : USER_Btn_Pin */
@@ -430,7 +430,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : Row3_Pin Row4_Pin Row2_Pin */
   GPIO_InitStruct.Pin = Row3_Pin|Row4_Pin|Row2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
@@ -442,12 +442,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : Row1_Pin USB_PowerSwitchOn_Pin */
-  GPIO_InitStruct.Pin = Row1_Pin|USB_PowerSwitchOn_Pin;
+  /*Configure GPIO pin : Row1_Pin */
+  GPIO_InitStruct.Pin = Row1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Row1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : USB_PowerSwitchOn_Pin */
+  GPIO_InitStruct.Pin = USB_PowerSwitchOn_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
+  HAL_GPIO_Init(USB_PowerSwitchOn_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : USB_OverCurrent_Pin */
   GPIO_InitStruct.Pin = USB_OverCurrent_Pin;

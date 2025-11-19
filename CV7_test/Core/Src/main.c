@@ -423,7 +423,7 @@ void StartVisualTask(void const * argument)
         HAL_GPIO_WritePin(LED2_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);
       }
     }
-    osDelay(1);
+    osDelay(1);//ne musi
   }
   /* USER CODE END StartVisualTask */
 }
@@ -476,7 +476,6 @@ void StartAcceleroTask(void const * argument)
 	    }
 
 	    vTaskDelay(50);
-	    osDelay(1);
 	  }
   /* USER CODE END StartAcceleroTask */
 }
