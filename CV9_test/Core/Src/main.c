@@ -104,7 +104,7 @@ int main(void)
   wait_hid_ready();
 //  circle(80);
   smiley();
-//  arc(30, 200.0f, 340.0f);
+//  arc(50, 200.0f, 340.0f);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -421,10 +421,10 @@ static void arc(int radius, float start_deg, float end_deg){
 void smiley(void){
     const int R_HEAD      = 80;  // радиус головы
     const int R_EYE       = 8;   // радиус глаза
-    const int EYE_OFF_X   = 20;  // сдвиг глаз по X от центра
+    const int EYE_OFF_X   = 15;  // сдвиг глаз по X от центра
     const int EYE_OFF_Y   = 18;  // сдвиг глаз по Y (вверх)
     const int NOSE_LEN    = 30;  // длина носа (прямая линия)
-    const int MOUTH_R     = 45;  // радиус улыбки
+    const int MOUTH_R     = 50;  // радиус улыбки
     const int MOUTH_OFF_Y = 30;  // сдвиг центра рта вниз
 
     // 1) Голова – большая окружность
@@ -450,7 +450,7 @@ void smiley(void){
     move_rel(0, 0);
 
     // 5) Улыбка – дуга
-    move_rel(R_HEAD/2+3.14159, +MOUTH_OFF_Y);         // центр рта ниже центра лица
+    move_rel(R_HEAD/2+R_EYE+3.14, +MOUTH_OFF_Y);         // центр рта ниже центра лица
     arc(MOUTH_R, 200.0f, 340.0f);      // нижняя дуга
     move_rel(0, -MOUTH_OFF_Y);         // вернули курсор в центр
 }
