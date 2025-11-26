@@ -419,13 +419,13 @@ static void arc(int8_t radius, float start_deg, float end_deg){
 
 
 void smiley(void){
-    const int8_t R_HEAD      = 80;  // радиус головы
-    const int8_t R_EYE       = 8;   // радиус глаза
-    const int8_t EYE_OFF_X   = 15;  // сдвиг глаз по X от центра
-    const int8_t EYE_OFF_Y   = 18;  // сдвиг глаз по Y (вверх)
-    const int8_t NOSE_LEN    = 30;  // длина носа (прямая линия)
-    const int8_t MOUTH_R     = 50;  // радиус улыбки
-    const int8_t MOUTH_OFF_Y = 30;  // сдвиг центра рта вниз
+    static const int8_t R_HEAD      = 80;  // радиус головы
+    static const int8_t R_EYE       = 8;   // радиус глаза
+    static const int8_t EYE_OFF_X   = 15;  // сдвиг глаз по X от центра
+    static const int8_t EYE_OFF_Y   = 18;  // сдвиг глаз по Y (вверх)
+    static const int8_t NOSE_LEN    = 30;  // длина носа (прямая линия)
+    static const int8_t MOUTH_R     = 50;  // радиус улыбки
+    static const int8_t MOUTH_OFF_Y = 30;  // сдвиг центра рта вниз
 
     // 1) Голова – большая окружность
     circle(R_HEAD);
