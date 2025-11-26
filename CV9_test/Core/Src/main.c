@@ -54,11 +54,11 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
-void step(int dx, int dy, bool btn);
-void circle(int radius);
+void step(int8_t dx, int8_t dy, bool btn);
+void circle(int8_t radius);
 static void wait_hid_ready(void);
-static void move_rel(int dx, int dy);
-static void arc(int radius, float start_deg, float end_deg);
+static void move_rel(int8_t dx, int8_t dy);
+static void arc(int8_t radius, float start_deg, float end_deg);
 void smiley(void);
 /* USER CODE END PFP */
 
@@ -299,7 +299,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void step(int dx, int dy, bool btn){
+void step(int8_t dx, int8_t dy, bool btn){
     uint8_t buff[4];
 
     buff[0] = btn ? 0x01 : 0x00;     // бит 0 = левая кнопка
@@ -311,35 +311,35 @@ void step(int dx, int dy, bool btn){
     HAL_Delay(USBD_HID_GetPollingInterval(&hUsbDeviceFS));
 }
 
-void circle(int radius){
-    const int steps = 80;                        // количество точек (можешь менять)
+void circle(int8_t radius){
+    const int8_t steps = 80;                        // количество точек (можешь менять)
     const float dphi = 2.0f * (float)M_PI / steps;
 
     // целочисленные предыдущие координаты
-    int sx_prev = 0;
-    int sy_prev = 0;
+    int8_t sx_prev = 0;
+    int8_t sy_prev = 0;
 
     // первую точку берём φ = 0
-    int sx0 = (int)lroundf(radius * cosf(0.0f));
-    int sy0 = (int)lroundf(radius * sinf(0.0f));
+    int8_t sx0 = (int8_t)lroundf(radius * cosf(0.0f));
+    int8_t sy0 = (int8_t)lroundf(radius * sinf(0.0f));
     sx_prev = sx0;
     sy_prev = sy0;
 
     // нажимаем кнопку перед рисованием
     step(0, 0, true);
 
-    for (int i = 1; i <= steps; i++)
+    for (int8_t i = 1; i <= steps; i++)
     {
         float phi = i * dphi;
 
         float x = radius * cosf(phi);
         float y = radius * sinf(phi);
 
-        int sx = (int)lroundf(x);
-        int sy = (int)lroundf(y);
+        int8_t sx = (int8_t)lroundf(x);
+        int8_t sy = (int8_t)lroundf(y);
 
-        int dx = sx - sx_prev;
-        int dy = sy - sy_prev;
+        int8_t dx = sx - sx_prev;
+        int8_t dy = sy - sy_prev;
 
         sx_prev = sx;
         sy_prev = sy;
@@ -358,7 +358,7 @@ void circle(int radius){
     step((-radius/2)-3.1415927, 0, false);
 }
 
-static void move_rel(int dx, int dy){
+static void move_rel(int8_t dx, int8_t dy){
     step(dx, dy, false);   // просто перемещение, кнопка не нажата
 }
 
@@ -377,35 +377,35 @@ static void wait_hid_ready(void){ //дебаг для того что бы не�
     }
 
     // Дополнительный короткий прогрев: 2–3 стабильных отчёта
-    for (int i = 0; i < 3; i++)
+    for (int8_t i = 0; i < 3; i++)
     {
         USBD_HID_SendReport(&hUsbDeviceFS, buff, sizeof(buff));
         HAL_Delay(1);
     }
 }
 
-static void arc(int radius, float start_deg, float end_deg){
-    const int steps = 40;   // сколько сегментов; можно подстроить
+static void arc(int8_t radius, float start_deg, float end_deg){
+    const int8_t steps = 40;   // сколько сегментов; можно подстроить
     float start = start_deg * (float)M_PI / 180.0f;
     float end   = end_deg   * (float)M_PI / 180.0f;
     float dphi  = (end - start) / steps;
 
     // начинаем из центра – сначала прыгаем в первую точку дуги
     float phi = start;
-    int sx_prev = (int)lroundf(radius * cosf(phi));
-    int sy_prev = (int)lroundf(radius * sinf(phi));
+    int8_t sx_prev = (int8_t)lroundf(radius * cosf(phi));
+    int8_t sy_prev = (int8_t)lroundf(radius * sinf(phi));
 
     // прыжок из центра в первую точку и зажимаем кнопку
     step(sx_prev, sy_prev, true);
 
-    for (int i = 1; i <= steps; i++)
+    for (int8_t i = 1; i <= steps; i++)
     {
         phi = start + i * dphi;
-        int sx = (int)lroundf(radius * cosf(phi));
-        int sy = (int)lroundf(radius * sinf(phi));
+        int8_t sx = (int8_t)lroundf(radius * cosf(phi));
+        int8_t sy = (int8_t)lroundf(radius * sinf(phi));
 
-        int dx = sx - sx_prev;
-        int dy = sy - sy_prev;
+        int8_t dx = sx - sx_prev;
+        int8_t dy = sy - sy_prev;
 
         sx_prev = sx;
         sy_prev = sy;
@@ -419,13 +419,13 @@ static void arc(int radius, float start_deg, float end_deg){
 
 
 void smiley(void){
-    const int R_HEAD      = 80;  // радиус головы
-    const int R_EYE       = 8;   // радиус глаза
-    const int EYE_OFF_X   = 15;  // сдвиг глаз по X от центра
-    const int EYE_OFF_Y   = 18;  // сдвиг глаз по Y (вверх)
-    const int NOSE_LEN    = 30;  // длина носа (прямая линия)
-    const int MOUTH_R     = 50;  // радиус улыбки
-    const int MOUTH_OFF_Y = 30;  // сдвиг центра рта вниз
+    const int8_t R_HEAD      = 80;  // радиус головы
+    const int8_t R_EYE       = 8;   // радиус глаза
+    const int8_t EYE_OFF_X   = 15;  // сдвиг глаз по X от центра
+    const int8_t EYE_OFF_Y   = 18;  // сдвиг глаз по Y (вверх)
+    const int8_t NOSE_LEN    = 30;  // длина носа (прямая линия)
+    const int8_t MOUTH_R     = 50;  // радиус улыбки
+    const int8_t MOUTH_OFF_Y = 30;  // сдвиг центра рта вниз
 
     // 1) Голова – большая окружность
     circle(R_HEAD);
@@ -441,7 +441,7 @@ void smiley(void){
     move_rel(-EYE_OFF_X-R_EYE/2, +EYE_OFF_Y);   // снова центр лица
 
     // 4) Нос – просто вертикальная линия вниз
-    for (int i = 0; i < NOSE_LEN; i++)
+    for (int8_t i = 0; i < NOSE_LEN; i++)
     {
         step(0, +1, true);   // рисуем линию
     }
