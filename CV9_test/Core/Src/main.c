@@ -302,24 +302,24 @@ static void MX_GPIO_Init(void)
 void step(int8_t dx, int8_t dy, bool btn){
     uint8_t buff[4];
 
-    buff[0] = btn ? 0x01 : 0x00;     // бит 0 = левая кнопка
-    buff[1] = (int8_t)dx;            // относительный сдвиг X
-    buff[2] = (int8_t)dy;            // относительный сдвиг Y
-    buff[3] = 0;                     // без скролла
+    buff[0] = btn ? 0x01 : 0x00;     // bit 0 = left button
+    buff[1] = (int8_t)dx;            // relative shift X
+    buff[2] = (int8_t)dy;            // relative shift Y
+    buff[3] = 0;                     // no scrolling
 
     USBD_HID_SendReport(&hUsbDeviceFS, buff, sizeof(buff));
     HAL_Delay(USBD_HID_GetPollingInterval(&hUsbDeviceFS));
 }
 
 void circle(int8_t radius){
-    const int8_t steps = 80;                        // количество точек (можешь менять)
+    const int8_t steps = 80;                        // number of points (DO NOT CHANGE)
     const float dphi = 2.0f * (float)M_PI / steps;
 
-    // целочисленные предыдущие координаты
+    // integer previous coordinates
     int8_t sx_prev = 0;
     int8_t sy_prev = 0;
 
-    // первую точку берём φ = 0
+    // take the first point phi = 0
     int8_t sx0 = (int8_t)lroundf(radius * cosf(0.0f));
     int8_t sy0 = (int8_t)lroundf(radius * sinf(0.0f));
     sx_prev = sx0;
