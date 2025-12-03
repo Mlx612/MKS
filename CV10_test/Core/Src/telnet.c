@@ -1,4 +1,4 @@
-/* telnet.c – Telnet server na portu 23 s ovládáním LED a HTTP klientem */
+/* telnet.c – Telnet ns portu 23, ovladani LED a HTTP klientem */
 
 #include "lwip/api.h"
 #include "lwip/sys.h"
@@ -12,7 +12,7 @@
 #define CMD_BUFFER_LEN     64
 #define HTTP_BUF_SIZE      1024
 
-/* statické buffery – не грузим стек */
+// staticke buffery – не грузим стек
 static char g_cmd_buffer[CMD_BUFFER_LEN];
 static char g_reply_buffer[128];
 static char g_http_buffer[HTTP_BUF_SIZE];
@@ -23,16 +23,16 @@ static void telnet_process_command(char *cmd, struct netconn *conn);
 static void telnet_send(struct netconn *conn, const char *s);
 static void http_client(char *s, uint16_t size);
 
-/* veřejná inicializační funkce – volá se z main.c */
+// verejna inicializacni funkce (vola se z main.c) mela bych...
 void telnet_init(void)
 {
-  const uint16_t TELNET_STACKSIZE = 2048;   // если будет мало – можно поднять
+  const uint16_t TELNET_STACKSIZE = 2048;   // если будет мало – можно поднять (наверное :))
   sys_thread_new("telnet", telnet_thread, NULL,
                  TELNET_STACKSIZE,
                  osPriorityNormal);
 }
 
-/* Telnet vlákno (server na portu 23) */
+// Telnet vlákno (server na portu 23)
 static void telnet_thread(void *argument)
 {
   struct netconn *conn, *newconn;
@@ -75,7 +75,7 @@ static void telnet_thread(void *argument)
   }
 }
 
-/* skládání příkazu po znacích */
+// skladani prikazu po znacich
 static void telnet_byte_available(uint8_t c, struct netconn *conn)
 {
   static uint16_t cnt = 0;
@@ -94,13 +94,13 @@ static void telnet_byte_available(uint8_t c, struct netconn *conn)
   }
 }
 
-/* posílání textu klientovi */
+// posílání textu klientovi
 static void telnet_send(struct netconn *conn, const char *s)
 {
   netconn_write(conn, s, strlen(s), NETCONN_COPY);
 }
 
-/* HTTP klient – stáhne /ip.php z www.urel.feec.vutbr.cz */
+// HTTP klient – stáhne /ip.php z www.urel.feec.vutbr.cz
 static void http_client(char *s, uint16_t size)
 {
   struct netconn *client;
@@ -108,7 +108,7 @@ static void http_client(char *s, uint16_t size)
   ip_addr_t ip;
   uint16_t len = 0;
 
-  /* IP adresa www.urel.feec.vutbr.cz = 147.229.144.124 */
+  // IP adresa www.urel.feec.vutbr.cz = 147.229.144.124
   IP_ADDR4(&ip, 147, 229, 144, 124);
 
   const char *request =
@@ -157,12 +157,12 @@ static void http_client(char *s, uint16_t size)
   netconn_delete(client);
 }
 
-/* parser příkazů */
+// parser prikazu
 static void telnet_process_command(char *cmd, struct netconn *conn)
 {
   char *reply = g_reply_buffer;
 
-  /* převod na velká písmena kvůli porovnání */
+  // prevod na velke pismena
   for (char *p = cmd; *p; ++p) {
     *p = (char)toupper((unsigned char)*p);
   }
@@ -199,7 +199,7 @@ static void telnet_process_command(char *cmd, struct netconn *conn)
     telnet_send(conn, "OK\r\n");
   }
   else if (strcmp(cmd, "CLIENT") == 0) {
-    /* HTTP klient – stáhne /ip.php a vypíše výsledek */
+    // HTTP klient - stahne /ip.php a vypise vysledek
     http_client(g_http_buffer, HTTP_BUF_SIZE);
     telnet_send(conn, g_http_buffer);
   }

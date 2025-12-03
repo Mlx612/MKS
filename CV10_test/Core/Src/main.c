@@ -336,13 +336,13 @@ void StartDefaultTask(void const * argument)
   // RNG-периферии нет, поэтому используем HAL_GetTick().
   srand(HAL_GetTick());
 
-  /* Initialize tcp echo server */
+  //Initialize tcp echo server
   tcpecho_init();
 
-  /* Initialize HTTP server */
+  //Initialize HTTP server
   httpd_init();
 
-  /* Initialize Telnet server (port 23) */
+  //Initialize Telnet server (port 23)
   telnet_init();
 
   /* Infinite loop */
