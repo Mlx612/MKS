@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "sct.h"
+#include "buttons_my.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -119,6 +120,8 @@ int main(void)
 	sct_init();
 	HAL_ADCEx_Calibration_Start(&hadc);
 	HAL_ADC_Start_IT(&hadc);
+	buttons_board_init();
+
 
 	/* USER CODE END 2 */
 
@@ -129,6 +132,7 @@ int main(void)
 
 		uint8_t  bl;
 		uint8_t dot=0;
+
 
 
 		update_view();
@@ -436,12 +440,16 @@ uint8_t read_button_S2(void)
 */
 void update_view(void){
 	uint32_t now = HAL_GetTick();
+	// Povinné: obsluha tlačítek
+
 	static uint32_t view_timestamp = 0;
 
-	if (HAL_GPIO_ReadPin(S1_GPIO_Port, S1_Pin) != GPIO_PIN_SET) {
+//	if (HAL_GPIO_ReadPin(S1_GPIO_Port, S1_Pin) != GPIO_PIN_SET) {
+	if (btn_is_down(button_S1())) {
 		view = SHOW_VOLT;
 		view_timestamp = now;
-	} else if (HAL_GPIO_ReadPin(S2_GPIO_Port, S2_Pin) != GPIO_PIN_SET) {
+//	} else if (HAL_GPIO_ReadPin(S2_GPIO_Port, S2_Pin) != GPIO_PIN_SET) {
+	} else if (btn_is_down(button_S2())) {
 		view = SHOW_TEMP;
 		view_timestamp = now;
 	} else {
