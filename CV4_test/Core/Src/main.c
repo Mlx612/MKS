@@ -44,6 +44,14 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+#define LED3_BIT  (1u << (16u+8u))
+#define LED4_BIT  (1u << (16u+9u))
+#define LED5_BIT  (1u << (16u+10u))
+#define LED6_BIT  (1u << (16u+11u))
+#define LED7_BIT  (1u << (16u+7u))
+#define LED8_BIT  (1u << (16u+6u))
+#define LED9_BIT  (1u << (16u+5u))
+#define LED10_BIT (1u << (16u+4u))
 
 /* USER CODE END PM */
 
@@ -69,8 +77,98 @@ static void MX_ADC_Init(void);
 /* USER CODE BEGIN 0 */
 
 static volatile uint32_t raw_pot=0;
-static volatile uint32_t raw_temp = 0;
-static volatile uint32_t raw_vref = 0;
+
+
+
+// ===== 7SEG segment masks (bit mapping from your sct.c tables) =====
+// Segment names: A(top), B(top-right), C(bottom-right), D(bottom), E(bottom-left), F(top-left), G(middle)
+// DP = decimal point
+
+// DIS1 (hundreds) is shifted by +16 in reg_values[0]
+#define D1_A   (1u << (16u+1u))
+#define D1_B   (1u << (16u+0u))
+#define D1_C   (1u << (16u+14u))
+#define D1_D   (1u << (16u+13u))
+#define D1_E   (1u << (16u+12u))
+#define D1_F   (1u << (16u+2u))
+#define D1_G   (1u << (16u+3u))
+#define D1_DP  (1u << (16u+15u))
+
+// DIS2 (tens) is reg_values[1] (no <<16). Order: ----PCDEGFAB----
+#define D2_A   (1u << (5u))
+#define D2_B   (1u << (4u))
+#define D2_C   (1u << (10u))
+#define D2_D   (1u << (9u))
+#define D2_E   (1u << (8u))
+#define D2_F   (1u << (6u))
+#define D2_G   (1u << (7u))
+#define D2_DP  (1u << (11u))   // potvrzené i v reg_values[4]
+
+// DIS3 (ones) is reg_values[2] (no shift). Same as DIS1 but without +16
+#define D3_A   (1u << (1u))
+#define D3_B   (1u << (0u))
+#define D3_C   (1u << (14u))
+#define D3_D   (1u << (13u))
+#define D3_E   (1u << (12u))
+#define D3_F   (1u << (2u))
+#define D3_G   (1u << (3u))
+#define D3_DP  (1u << (15u))
+
+
+static uint32_t seg_mask(uint8_t digit, uint8_t seg)
+{
+    // digit: 0=DIS1, 1=DIS2, 2=DIS3
+    // seg: 0=A,1=B,2=C,3=D,4=E,5=F,6=G,7=DP
+
+    switch (digit) {
+    case 0: // DIS1
+        switch (seg) {
+        case 0: return D1_A; case 1: return D1_B; case 2: return D1_C; case 3: return D1_D;
+        case 4: return D1_E; case 5: return D1_F; case 6: return D1_G; default: return D1_DP;
+        }
+    case 1: // DIS2
+        switch (seg) {
+        case 0: return D2_A; case 1: return D2_B; case 2: return D2_C; case 3: return D2_D;
+        case 4: return D2_E; case 5: return D2_F; case 6: return D2_G; default: return D2_DP;
+        }
+    default: // DIS3
+        switch (seg) {
+        case 0: return D3_A; case 1: return D3_B; case 2: return D3_C; case 3: return D3_D;
+        case 4: return D3_E; case 5: return D3_F; case 6: return D3_G; default: return D3_DP;
+        }
+    }
+}
+
+
+typedef struct {
+    uint8_t digit; // 0=DIS1,1=DIS2,2=DIS3
+    uint8_t seg;   // 0=A,1=B,2=C,3=D,4=E,5=F,6=G,7=DP
+} node_t;
+
+// ===== GLOBAL "around the whole 3-digit display" path =====
+// perimeter: top across 3 digits, right side, bottom across 3 digits, left side
+// + DP across (so "vč. desetinných teček")
+static const node_t path[] = {
+    // TOP
+    {0,0}, {1,0}, {2,0},
+
+    // RIGHT side (rightmost digit)
+    {2,1}, {2,2},
+
+    // BOTTOM + dots (natural feel)
+    {2,7}, {2,3},   // DIS3: DP then D
+	{1,7}, {1,3},   // DIS2: DP then D
+	{0,7}, {0,3},   // DIS1: Dp then D
+
+    // LEFT side (leftmost digit)
+    {0,4}, {0,5},
+};
+#define PATH_N (sizeof(path)/sizeof(path[0]))
+
+static int path_dir = +1;      // +1 dopředu, -1 zpět
+static uint8_t path_i = 0;     // index v path
+static uint32_t next_step_ms = 0;
+
 
 
 // for state machine
@@ -79,6 +177,8 @@ static  view_t view = SHOW_POT;
 
 // define void function;
 void update_view(void);
+
+
 
 /* USER CODE END 0 */
 
@@ -127,42 +227,30 @@ int main(void)
 	while (1)
 	{
 
-		uint8_t  bl;
-		uint8_t dot=0;
 
+		uint32_t now = HAL_GetTick();
 
-		update_view();
+		// rychlost 20..300 ms / segment
+		uint32_t step_ms = 20u + (raw_pot * (300u - 20u)) / 4095u;
 
-		uint16_t disp = 0;
-		switch (view) {
-		case SHOW_POT: {
-			// POT: value 0 to 500
-			//		  disp = (uint16_t)((raw_pot * 500u + 2047u) / 4095u); // chujna kakjato bez bejo lucshe
-			disp = (uint16_t)((raw_pot * 501u) / 4095u);
-			bl = (uint8_t)((disp * 8u) / 500u); // bargraph: value 0 to 8
-		} break;
+		if ((int32_t)(now - next_step_ms) >= 0) {
+		    next_step_ms = now + step_ms;
 
-		case SHOW_VOLT: {
-			// show AVCC in the next type: 3.30V → "330"
-			uint32_t avcc_centi = 330u * (*VREFINT_CAL_ADDR) / (raw_vref ? raw_vref : 1u);
-			if (avcc_centi > 999u) avcc_centi = 999u;
-			disp = (uint16_t)avcc_centi;
-			dot=1;   //add dot on the display on the first segment, like this "3.30"
-		} break;
+		    // posun po společné trase
+		    if (path_dir > 0) {
+		        path_i++;
+		        if (path_i >= PATH_N) path_i = 0;
+		    } else {
+		        if (path_i == 0) path_i = (uint8_t)(PATH_N - 1);
+		        else path_i--;
+		    }
 
-		case SHOW_TEMP: {
-			int32_t t = (int32_t)raw_temp - (int32_t)(*TEMP30_CAL_ADDR);
-			t = t * 80; // (110-30)
-			t = t / ((int32_t)(*TEMP110_CAL_ADDR) - (int32_t)(*TEMP30_CAL_ADDR));
-			t = t + 30;
-			if (t < 0) t = 0;
-			if (t > 999) t = 999;
-			disp = (uint16_t)t;
-		} break;
+		    uint32_t mask = seg_mask(path[path_i].digit, path[path_i].seg);
+		    sct_led(mask);
 		}
 
-		sct_value(disp, bl, dot);   // push value to the display
-		HAL_Delay(50);
+		HAL_Delay(1);
+
 
 
 		/* USER CODE END WHILE */
@@ -373,67 +461,39 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+//void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+//{
+//	uint32_t s = HAL_ADC_GetValue(hadc);
+//	static  uint32_t avg_pot = 0;
+//	static  uint8_t  chan = 0; // 0–2: Rank1=IN0 (or value on R2), Rank2=Temp, Rank3=Vref
+//
+//	if (chan == 0) {                 // Rank1: IN0 (POT)
+//		if (avg_pot == 0) avg_pot = s << ADC_Q;  // быстрая инициализация
+//		avg_pot -= (avg_pot >> ADC_Q);
+//		avg_pot += s;
+//		raw_pot = (avg_pot >> ADC_Q);
+//	} else if (chan == 1) {          // Rank2: TEMP
+//		raw_temp = s;
+//	} else {                          // Rank3: VREFINT
+//		raw_vref = s;
+//	}
+//
+//	if (__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_EOS)) chan = 0;
+//	else chan++;
+//}
+
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
 	uint32_t s = HAL_ADC_GetValue(hadc);
 	static  uint32_t avg_pot = 0;
-	static  uint8_t  chan = 0; // 0–2: Rank1=IN0 (or value on R2), Rank2=Temp, Rank3=Vref
 
-	if (chan == 0) {                 // Rank1: IN0 (POT)
 		if (avg_pot == 0) avg_pot = s << ADC_Q;  // быстрая инициализация
 		avg_pot -= (avg_pot >> ADC_Q);
 		avg_pot += s;
 		raw_pot = (avg_pot >> ADC_Q);
-	} else if (chan == 1) {          // Rank2: TEMP
-		raw_temp = s;
-	} else {                          // Rank3: VREFINT
-		raw_vref = s;
-	}
-
-	if (__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_EOS)) chan = 0;
-	else chan++;
-}
-/* debounce not used
-uint8_t read_button_S1(void)
-{
-	static uint32_t delay;
-	static uint16_t debounce = 0xFFFF;
-	uint32_t Tick = HAL_GetTick();
-
-	if (Tick > delay + 5) {
-		delay = Tick;
-
-		debounce <<= 1;
-		if (HAL_GPIO_ReadPin(S1_GPIO_Port, S1_Pin) == GPIO_PIN_SET) {
-			debounce |= 0x0001;   // pull-up: отпущена = 1
-		}
-		if (debounce == 0x8000) {
-			return 1;             // нажата
-		}
-	}
-	return 0;                     // не нажата
 }
 
-uint8_t read_button_S2(void)
-{
-	static uint32_t delay;
-	static uint16_t debounce = 0xFFFF;
-	uint32_t Tick = HAL_GetTick();
 
-	if (Tick > delay + 5) {
-		delay = Tick;
-
-		debounce <<= 1;
-		if (HAL_GPIO_ReadPin(S2_GPIO_Port, S2_Pin) == GPIO_PIN_SET) {
-			debounce |= 0x0001;   // pull-up: отпущена = 1
-		}
-		if (debounce == 0x8000) {
-			return 1;             // нажата
-		}
-	}
-	return 0;                     // не нажата
-}
-*/
 void update_view(void){
 	uint32_t now = HAL_GetTick();
 	static uint32_t view_timestamp = 0;
