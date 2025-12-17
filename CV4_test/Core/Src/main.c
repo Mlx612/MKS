@@ -44,14 +44,6 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define LED3_BIT  (1u << (16u+8u))
-#define LED4_BIT  (1u << (16u+9u))
-#define LED5_BIT  (1u << (16u+10u))
-#define LED6_BIT  (1u << (16u+11u))
-#define LED7_BIT  (1u << (16u+7u))
-#define LED8_BIT  (1u << (16u+6u))
-#define LED9_BIT  (1u << (16u+5u))
-#define LED10_BIT (1u << (16u+4u))
 
 /* USER CODE END PM */
 
@@ -155,8 +147,8 @@ static const node_t path[] = {
     // RIGHT side (rightmost digit)
     {2,1}, {2,2},
 
-    // BOTTOM + dots (natural feel)
-    {2,7}, {2,3},   // DIS3: DP then D
+    // BOTTOM + dots
+    {2,7}, {2,3},   // DIS3: DP then D (vole nemenit je to spravne !!!!!!!!!)
 	{1,7}, {1,3},   // DIS2: DP then D
 	{0,7}, {0,3},   // DIS1: Dp then D
 
@@ -169,11 +161,6 @@ static int path_dir = +1;      // +1 dopředu, -1 zpět
 static uint8_t path_i = 0;     // index v path
 static uint32_t next_step_ms = 0;
 
-
-
-// for state machine
-typedef enum { SHOW_POT = 0, SHOW_VOLT, SHOW_TEMP } view_t;
-static  view_t view = SHOW_POT;
 
 // define void function;
 void update_view(void);
@@ -229,6 +216,15 @@ int main(void)
 
 
 		uint32_t now = HAL_GetTick();
+
+		// S1: smer dopredu, S2: smer zpet (pull-up => stisk = 0)
+		if (HAL_GPIO_ReadPin(S1_GPIO_Port, S1_Pin) == GPIO_PIN_RESET) {
+		    path_dir = +1;
+		}
+		if (HAL_GPIO_ReadPin(S2_GPIO_Port, S2_Pin) == GPIO_PIN_RESET) {
+		    path_dir = -1;
+		}
+
 
 		// rychlost 20..300 ms / segment
 		uint32_t step_ms = 20u + (raw_pot * (300u - 20u)) / 4095u;
@@ -461,26 +457,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-//void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
-//{
-//	uint32_t s = HAL_ADC_GetValue(hadc);
-//	static  uint32_t avg_pot = 0;
-//	static  uint8_t  chan = 0; // 0–2: Rank1=IN0 (or value on R2), Rank2=Temp, Rank3=Vref
-//
-//	if (chan == 0) {                 // Rank1: IN0 (POT)
-//		if (avg_pot == 0) avg_pot = s << ADC_Q;  // быстрая инициализация
-//		avg_pot -= (avg_pot >> ADC_Q);
-//		avg_pot += s;
-//		raw_pot = (avg_pot >> ADC_Q);
-//	} else if (chan == 1) {          // Rank2: TEMP
-//		raw_temp = s;
-//	} else {                          // Rank3: VREFINT
-//		raw_vref = s;
-//	}
-//
-//	if (__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_EOS)) chan = 0;
-//	else chan++;
-//}
+
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
@@ -494,21 +471,6 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 }
 
 
-void update_view(void){
-	uint32_t now = HAL_GetTick();
-	static uint32_t view_timestamp = 0;
-
-	if (HAL_GPIO_ReadPin(S1_GPIO_Port, S1_Pin) != GPIO_PIN_SET) {
-		view = SHOW_VOLT;
-		view_timestamp = now;
-	} else if (HAL_GPIO_ReadPin(S2_GPIO_Port, S2_Pin) != GPIO_PIN_SET) {
-		view = SHOW_TEMP;
-		view_timestamp = now;
-	} else {
-		// если 1 сек не нажимали — вернуться на POT
-		if ((now - view_timestamp) > 1000u) view = SHOW_POT;
-	}
-}
 
 /* USER CODE END 4 */
 
